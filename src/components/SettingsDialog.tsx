@@ -159,6 +159,88 @@ export function SettingsDialog({
 
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMore />}>
+              <Typography variant="h6">Info-KMeans Parameters</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    Information Threshold:{" "}
+                    {config.informationThreshold?.toFixed(2) || 0.6}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Nodes below this threshold will be put to sleep
+                  </Typography>
+                  <Slider
+                    value={config.informationThreshold || 0.6}
+                    onChange={(_, value) =>
+                      updateConfig({ informationThreshold: value as number })
+                    }
+                    min={0.1}
+                    max={1.0}
+                    step={0.05}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    Nearest Neighbors: {config.nearestNeighbors || 6}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Number of neighbors used for information calculation
+                  </Typography>
+                  <Slider
+                    value={config.nearestNeighbors || 6}
+                    onChange={(_, value) =>
+                      updateConfig({ nearestNeighbors: value as number })
+                    }
+                    min={3}
+                    max={15}
+                    step={1}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    Entropy Bins: {config.entropyBins || 10}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Number of bins for data discretization
+                  </Typography>
+                  <Slider
+                    value={config.entropyBins || 10}
+                    onChange={(_, value) =>
+                      updateConfig({ entropyBins: value as number })
+                    }
+                    min={5}
+                    max={20}
+                    step={1}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+              </Grid>
+            </AccordionDetails>
+          </Accordion>
+
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMore />}>
               <Typography variant="h6">Environmental Ranges</Typography>
             </AccordionSummary>
             <AccordionDetails>

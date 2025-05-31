@@ -3,6 +3,7 @@ export interface Sensor {
   x: number;
   y: number;
   energy: number;
+  isAsleep?: boolean;
 }
 
 export interface SensorData {
@@ -17,11 +18,13 @@ export interface Cluster {
   id: number;
   headId: number;
   members: Sensor[];
+  sleepingMembers?: Sensor[];
 }
 
 export interface HistoryItem {
   clusters: Cluster[];
   sensorsData: SensorData[];
+  sleepingNodes?: number[];
 }
 
 export interface SimulationConfig {
@@ -46,18 +49,26 @@ export interface SimulationConfig {
   maxTemperature: number;
   minPH: number;
   maxPH: number;
+
+  // Info-KMeans parameters
+  informationThreshold?: number;
+  nearestNeighbors?: number;
+  entropyBins?: number;
+  historyWindow?: number; // New parameter for history window size
 }
 
 export interface LeachConfig {
   distanceFactor: number;
 }
 
-export type AlgorithmType = "kmeans" | "leach";
+export type AlgorithmType = "kmeans" | "leach" | "info-kmeans";
 
 export interface AlgorithmResult {
   history: HistoryItem[];
   networkLifetime: number;
   totalRounds: number;
+  averageInformationNodes?: number;
+  energySavings?: number;
 }
 
 export interface SimulationResult {
@@ -74,12 +85,22 @@ export interface SimulationStats {
   averageEnergy: number;
   clusters: number;
   lastClusteringRound: number;
+  sleepingNodes?: number;
+  activeNodes?: number;
 }
 
 export interface ClusteringAlgorithm {
   cluster(
     sensors: Sensor[],
     config: SimulationConfig,
-    round?: number
+    round?: number,
+    sensorsData?: SensorData[],
+    historicalData?: SensorData[][] // New parameter for historical data
   ): Cluster[];
+}
+
+// Historical data storage interface
+export interface HistoricalSensorData {
+  sensorId: number;
+  dataHistory: SensorData[]; // Array of sensor data over time
 }

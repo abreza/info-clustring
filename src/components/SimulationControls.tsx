@@ -1,3 +1,4 @@
+// src/components/SimulationControls.tsx - Updated with info-kmeans
 import React from "react";
 import {
   Box,
@@ -44,7 +45,7 @@ export function SimulationControls({
           justifyContent: "space-between",
         }}
       >
-        <FormControl size="small" sx={{ minWidth: 200 }}>
+        <FormControl size="small" sx={{ minWidth: 250 }}>
           <InputLabel>Clustering Algorithm</InputLabel>
           <Select
             value={algorithm}
@@ -54,6 +55,9 @@ export function SimulationControls({
           >
             <MenuItem value="kmeans">K-Means Clustering</MenuItem>
             <MenuItem value="leach">LEACH Protocol</MenuItem>
+            <MenuItem value="info-kmeans">
+              Info-KMeans (Information-Aware)
+            </MenuItem>
           </Select>
         </FormControl>
 
