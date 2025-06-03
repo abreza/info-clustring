@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Box, Grid } from "@mui/material";
 
-import { NetworkVisualization } from "../components/NetworkVisualization";
+import { NetworkVisualization } from "../components/visualization/NetworkVisualization";
 import { SimulationStatsComponent } from "../components/SimulationStats";
 import { SimulationControls } from "../components/SimulationControls";
 import { SettingsDialog } from "../components/SettingsDialog";

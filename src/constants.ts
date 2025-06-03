@@ -13,20 +13,19 @@ export const DEFAULT_CONFIG: SimulationConfig = {
   distanceFactor: 0.00005,
   energyToSatellite: 5,
 
-  minSalinity: 30,
-  maxSalinity: 38,
+  minSalinity: 10,
+  maxSalinity: 68,
   minPressure: 1000,
-  maxPressure: 3000,
+  maxPressure: 30000,
   minTemperature: 2,
-  maxTemperature: 25,
+  maxTemperature: 65,
   minPH: 7.5,
-  maxPH: 8.5,
+  maxPH: 18.5,
 
-  // Info-KMeans parameters
   informationThreshold: 0.6,
   nearestNeighbors: 6,
   entropyBins: 10,
-  historyWindow: 10, // New parameter for historical analysis
+  historyWindow: 10,
 };
 
 export const PLAYBACK_SPEED_DEFAULT = 300;

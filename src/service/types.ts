@@ -50,15 +50,11 @@ export interface SimulationConfig {
   minPH: number;
   maxPH: number;
 
-  // Info-KMeans parameters
+  /* Info-KMeans-specific */
   informationThreshold?: number;
   nearestNeighbors?: number;
   entropyBins?: number;
-  historyWindow?: number; // New parameter for history window size
-}
-
-export interface LeachConfig {
-  distanceFactor: number;
+  historyWindow?: number;
 }
 
 export type AlgorithmType = "kmeans" | "leach" | "info-kmeans";
@@ -67,8 +63,11 @@ export interface AlgorithmResult {
   history: HistoryItem[];
   networkLifetime: number;
   totalRounds: number;
+
   averageInformationNodes?: number;
   energySavings?: number;
+
+  estimationErrors?: number[];
 }
 
 export interface SimulationResult {
@@ -95,12 +94,6 @@ export interface ClusteringAlgorithm {
     config: SimulationConfig,
     round?: number,
     sensorsData?: SensorData[],
-    historicalData?: SensorData[][] // New parameter for historical data
+    historicalData?: SensorData[][]
   ): Cluster[];
-}
-
-// Historical data storage interface
-export interface HistoricalSensorData {
-  sensorId: number;
-  dataHistory: SensorData[]; // Array of sensor data over time
 }

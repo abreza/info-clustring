@@ -23,6 +23,9 @@ export class WSNSimulationEngine {
   private infoKmeansAlgorithm: InfoKMeansClusteringAlgorithm;
   private environmentModule: EnvironmentModule;
 
+  private readonly EPS = 1e-4;
+  private readonly EST_K = 6;
+
   constructor(config: SimulationConfig) {
     this.config = config;
     this.sensors = [];
@@ -72,13 +75,11 @@ export class WSNSimulationEngine {
       const head = sensors.find((s) => s.id === cluster.headId);
       if (!head || head.energy <= 0) return;
 
-      // Regular cluster members (active nodes)
       const members = cluster.members.filter((m) => m.id !== cluster.headId);
       const rxEnergy = members.length * this.config.energyRxElec;
       head.energy -= rxEnergy;
       head.energy -= this.config.energyToSatellite;
 
-      // Process active members
       members.forEach((member) => {
         const memberSensor = sensors.find((s) => s.id === member.id);
         if (!memberSensor || memberSensor.energy <= 0 || memberSensor.isAsleep)
@@ -95,13 +96,11 @@ export class WSNSimulationEngine {
         }
       });
 
-      // Process sleeping members (for info-kmeans)
       if (algorithm === "info-kmeans" && cluster.sleepingMembers) {
         cluster.sleepingMembers.forEach((sleepingMember) => {
           const memberSensor = sensors.find((s) => s.id === sleepingMember.id);
           if (!memberSensor || memberSensor.energy <= 0) return;
 
-          // Sleeping nodes consume very little energy
           memberSensor.energy -= 0.001;
           if (memberSensor.energy < 0) {
             memberSensor.energy = 0;
@@ -109,7 +108,6 @@ export class WSNSimulationEngine {
         });
       }
 
-      // Base energy consumption for all active sensors
       sensors.forEach((sensor) => {
         if (sensor.energy > 0 && !sensor.isAsleep) {
           sensor.energy -= 0.01;
@@ -129,21 +127,66 @@ export class WSNSimulationEngine {
     return sensors.map((sensor) => ({ ...sensor }));
   }
 
+  private estimateSensorValueEnhanced(
+    target: Sensor,
+    roundIdx: number,
+    lastKnown: Map<number, SensorData>,
+    allSensors: Sensor[]
+  ): SensorData {
+    const allNeighbors = allSensors
+      .filter((s) => s.id !== target.id)
+      .sort((a, b) => this.distance(a, target) - this.distance(b, target))
+      .slice(0, this.EST_K);
+
+    if (allNeighbors.length === 0) {
+      return {
+        id: target.id,
+        ...this.environmentModule.getSensorData(target.x, target.y, roundIdx),
+      };
+    }
+
+    let wSum = 0;
+    const acc = { salinity: 0, pressure: 0, temperature: 0, ph: 0 };
+    let usedNeighbors = 0;
+
+    for (const neighbor of allNeighbors) {
+      const neighborData = lastKnown.get(neighbor.id);
+      if (neighborData) {
+        const w = 1 / (this.distance(neighbor, target) + this.EPS);
+        wSum += w;
+        acc.salinity += neighborData.salinity * w;
+        acc.pressure += neighborData.pressure * w;
+        acc.temperature += neighborData.temperature * w;
+        acc.ph += neighborData.ph * w;
+        usedNeighbors++;
+      }
+    }
+
+    if (usedNeighbors === 0) {
+      return {
+        id: target.id,
+        ...this.environmentModule.getSensorData(target.x, target.y, roundIdx),
+      };
+    }
+
+    return {
+      id: target.id,
+      salinity: acc.salinity / wSum,
+      pressure: acc.pressure / wSum,
+      temperature: acc.temperature / wSum,
+      ph: acc.ph / wSum,
+    };
+  }
+
   private runSingleAlgorithm(
     algorithm: AlgorithmType,
     maxRounds: number = 1000
   ): AlgorithmResult {
     const algorithmSensors = this.deepCopySensors(this.sensors);
+
     const history: HistoryItem[] = [];
+    const estimationErrors: number[] = [];
 
-    let round = 0;
-    let lastClusteringRound = -1;
-    let networkLifetime = 0;
-    let totalInformationNodes = 0;
-    let informationNodeCounts = 0;
-    let totalEnergySaved = 0;
-
-    // Clear history for info-kmeans algorithm
     if (algorithm === "info-kmeans") {
       this.infoKmeansAlgorithm.clearHistory();
     }
@@ -155,13 +198,22 @@ export class WSNSimulationEngine {
         ? this.leachAlgorithm
         : this.infoKmeansAlgorithm;
 
+    const lastKnown = new Map<number, SensorData>();
+
+    let round = 0;
+    let lastClusteringRound = -1;
+    let networkLifetime = 0;
+    let totalInformationNodes = 0;
+    let informationNodeCounts = 0;
+    let totalEnergySaved = 0;
+
+    let networkEnded = false;
     while (round < maxRounds) {
-      const aliveSensors = this.getAliveSensors(algorithmSensors);
+      const aliveSensors = algorithmSensors.filter((s) => s.energy > 0);
 
       if (aliveSensors.length === 0) {
-        if (networkLifetime === 0) {
-          networkLifetime = round;
-        }
+        if (networkLifetime === 0) networkLifetime = round;
+        networkEnded = true;
         break;
       }
 
@@ -171,7 +223,6 @@ export class WSNSimulationEngine {
       }));
 
       let clusters: Cluster[] = [];
-
       const shouldRecluster =
         round - lastClusteringRound >= this.config.clusteringInterval ||
         lastClusteringRound === -1;
@@ -186,7 +237,6 @@ export class WSNSimulationEngine {
             Math.floor(round / this.config.clusteringInterval)
           );
         } else {
-          // info-kmeans with historical data
           clusters = clusteringAlgorithm.cluster(
             algorithmSensors,
             this.config,
@@ -195,63 +245,80 @@ export class WSNSimulationEngine {
           );
         }
         lastClusteringRound = round;
-      } else {
-        if (history.length > 0) {
-          const lastHistory = history[history.length - 1];
-          clusters = lastHistory.clusters
-            .map((cluster) => ({
-              ...cluster,
-              members: cluster.members
-                .map((member) => {
-                  const currentSensor = algorithmSensors.find(
-                    (s) => s.id === member.id
-                  );
-                  return currentSensor || member;
-                })
-                .filter((member) => member.energy > 0),
-              sleepingMembers: cluster.sleepingMembers
-                ? cluster.sleepingMembers
-                    .map((member) => {
-                      const currentSensor = algorithmSensors.find(
-                        (s) => s.id === member.id
-                      );
-                      return currentSensor || member;
-                    })
-                    .filter((member) => member.energy > 0)
-                : undefined,
-            }))
-            .filter((cluster) => {
-              const head = algorithmSensors.find(
-                (s) => s.id === cluster.headId
-              );
-              return head && head.energy > 0;
-            });
-        }
+      } else if (history.length) {
+        const prev = history[history.length - 1];
+        clusters = prev.clusters
+          .map((c) => ({
+            ...c,
+            members: c.members
+              .map((m) => {
+                const now = algorithmSensors.find((s) => s.id === m.id);
+                return now ?? m;
+              })
+              .filter((m) => m.energy > 0),
+            sleepingMembers: c.sleepingMembers
+              ?.map((m) => {
+                const now = algorithmSensors.find((s) => s.id === m.id);
+                return now ?? m;
+              })
+              .filter((m) => m.energy > 0),
+          }))
+          .filter(
+            (c) => algorithmSensors.find((s) => s.id === c.headId)?.energy! > 0
+          );
       }
 
       this.calculateEnergyConsumption(clusters, algorithmSensors, algorithm);
 
-      // Calculate metrics for info-kmeans
+      for (const sensor of algorithmSensors) {
+        const truth = sensorsData.find((d) => d.id === sensor.id)!;
+
+        if (sensor.energy > 0 && !sensor.isAsleep) {
+          lastKnown.set(sensor.id, truth);
+        }
+      }
+
+      let maeSum = 0;
+      let sampleCnt = 0;
+
+      for (const sensor of algorithmSensors) {
+        const truth = sensorsData.find((d) => d.id === sensor.id)!;
+        const missing = sensor.energy <= 0 || sensor.isAsleep;
+
+        if (missing) {
+          const est = this.estimateSensorValueEnhanced(
+            sensor,
+            round,
+            lastKnown,
+            this.sensors
+          );
+          maeSum +=
+            Math.abs(est.salinity - truth.salinity) +
+            Math.abs(est.pressure - truth.pressure) +
+            Math.abs(est.temperature - truth.temperature) +
+            Math.abs(est.ph - truth.ph);
+          sampleCnt += 4;
+        }
+      }
+      estimationErrors.push(sampleCnt ? maeSum / sampleCnt : 0);
+
       if (algorithm === "info-kmeans") {
-        const activeSensors = algorithmSensors.filter(
+        const active = algorithmSensors.filter(
           (s) => s.energy > 0 && !s.isAsleep
         );
-        const sleepingSensors = algorithmSensors.filter(
+        const sleeping = algorithmSensors.filter(
           (s) => s.energy > 0 && s.isAsleep
         );
-
-        totalInformationNodes += activeSensors.length;
+        totalInformationNodes += active.length;
         informationNodeCounts++;
-
-        // Estimate energy saved by sleeping nodes
-        totalEnergySaved += sleepingSensors.length * 0.01;
+        totalEnergySaved += sleeping.length * 0.01;
       }
 
       const sleepingNodes = algorithmSensors
         .filter((s) => s.isAsleep && s.energy > 0)
         .map((s) => s.id);
 
-      const historyItem: HistoryItem = {
+      history.push({
         clusters: clusters.map((cluster) => ({
           ...cluster,
           members: cluster.members.map((member) => ({
@@ -259,39 +326,35 @@ export class WSNSimulationEngine {
             x: member.x,
             y: member.y,
             energy:
-              algorithmSensors.find((s) => s.id === member.id)?.energy || 0,
+              algorithmSensors.find((s) => s.id === member.id)?.energy ?? 0,
             isAsleep:
-              algorithmSensors.find((s) => s.id === member.id)?.isAsleep ||
+              algorithmSensors.find((s) => s.id === member.id)?.isAsleep ??
               false,
           })),
-          sleepingMembers: cluster.sleepingMembers?.map((member) => ({
-            id: member.id,
-            x: member.x,
-            y: member.y,
-            energy:
-              algorithmSensors.find((s) => s.id === member.id)?.energy || 0,
+          sleepingMembers: cluster.sleepingMembers?.map((m) => ({
+            id: m.id,
+            x: m.x,
+            y: m.y,
+            energy: algorithmSensors.find((s) => s.id === m.id)?.energy ?? 0,
             isAsleep: true,
           })),
         })),
         sensorsData: [...sensorsData],
-        sleepingNodes: sleepingNodes.length > 0 ? sleepingNodes : undefined,
-      };
+        sleepingNodes: sleepingNodes.length ? sleepingNodes : undefined,
+      });
 
-      history.push(historyItem);
       round++;
     }
 
-    if (networkLifetime === 0) {
-      networkLifetime = round;
-    }
+    if (networkLifetime === 0) networkLifetime = round;
 
     const result: AlgorithmResult = {
-      history: [...history],
+      history,
       networkLifetime,
       totalRounds: round,
+      estimationErrors,
     };
 
-    // Add info-kmeans specific metrics
     if (algorithm === "info-kmeans") {
       result.averageInformationNodes =
         informationNodeCounts > 0
@@ -303,20 +366,90 @@ export class WSNSimulationEngine {
     return result;
   }
 
+  private calculateExtendedErrors(
+    results: { [K in AlgorithmType]: AlgorithmResult },
+    maxRounds: number
+  ): void {
+    const algorithms: AlgorithmType[] = ["kmeans", "leach", "info-kmeans"];
+
+    for (const algorithm of algorithms) {
+      const result = results[algorithm];
+      const currentRounds = result.totalRounds;
+
+      if (currentRounds < maxRounds) {
+        const lastKnown = new Map<number, SensorData>();
+
+        for (let round = 0; round < currentRounds; round++) {
+          const historyItem = result.history[round];
+          for (const data of historyItem.sensorsData) {
+            const allMembers = historyItem.clusters.flatMap((c) => [
+              ...c.members,
+              ...(c.sleepingMembers || []),
+            ]);
+            const sensor = allMembers.find((m) => m.id === data.id);
+
+            if (sensor && sensor.energy > 0 && !sensor.isAsleep) {
+              lastKnown.set(data.id, data);
+            }
+          }
+        }
+
+        for (let round = currentRounds; round < maxRounds; round++) {
+          const sensorsData = this.sensors.map((sensor) => ({
+            id: sensor.id,
+            ...this.environmentModule.getSensorData(sensor.x, sensor.y, round),
+          }));
+
+          let maeSum = 0;
+          let sampleCnt = 0;
+
+          for (const sensor of this.sensors) {
+            const truth = sensorsData.find((d) => d.id === sensor.id)!;
+            const est = this.estimateSensorValueEnhanced(
+              sensor,
+              round,
+              lastKnown,
+              this.sensors
+            );
+
+            maeSum +=
+              Math.abs(est.salinity - truth.salinity) +
+              Math.abs(est.pressure - truth.pressure) +
+              Math.abs(est.temperature - truth.temperature) +
+              Math.abs(est.ph - truth.ph);
+            sampleCnt += 4;
+          }
+
+          result.estimationErrors?.push(sampleCnt ? maeSum / sampleCnt : 0);
+        }
+
+        result.totalRounds = maxRounds;
+      }
+    }
+  }
+
   public runSimulation(maxRounds: number = 1000): SimulationResult {
     this.generateSensors();
 
     const originalSensors = this.deepCopySensors(this.sensors);
 
-    const algorithms: { [K in AlgorithmType]: AlgorithmResult } = {
+    const algorithmResults = {
       kmeans: this.runSingleAlgorithm("kmeans", maxRounds),
       leach: this.runSingleAlgorithm("leach", maxRounds),
       "info-kmeans": this.runSingleAlgorithm("info-kmeans", maxRounds),
     };
 
+    const maxAchievedRounds = Math.max(
+      algorithmResults.kmeans.totalRounds,
+      algorithmResults.leach.totalRounds,
+      algorithmResults["info-kmeans"].totalRounds
+    );
+
+    this.calculateExtendedErrors(algorithmResults, maxAchievedRounds);
+
     return {
       sensors: originalSensors,
-      algorithms,
+      algorithms: algorithmResults,
     };
   }
 
@@ -379,7 +512,6 @@ export class WSNSimulationEngine {
     this.config = { ...this.config, ...newConfig };
     this.environmentModule = new EnvironmentModule(this.config);
 
-    // Clear history when config changes
     this.infoKmeansAlgorithm.clearHistory();
   }
 
@@ -391,7 +523,6 @@ export class WSNSimulationEngine {
     this.environmentModule.updateEnvironment();
   }
 
-  // Method to get info-kmeans debug information
   public getInfoKMeansDebugInfo(): {
     historySize: number;
     averageHistoryLength: number;
