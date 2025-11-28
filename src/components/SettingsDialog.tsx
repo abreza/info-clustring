@@ -112,6 +112,78 @@ export function SettingsDialog({
                     valueLabelDisplay="auto"
                   />
                 </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    Number of Clusters: {config.numClusters}
+                  </Typography>
+                  <Slider
+                    value={config.numClusters}
+                    onChange={(_, value) =>
+                      updateConfig({ numClusters: value as number })
+                    }
+                    min={2}
+                    max={20}
+                    step={1}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    Clustering Interval: {config.clusteringInterval}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Number of rounds between re-clustering
+                  </Typography>
+                  <Slider
+                    value={config.clusteringInterval}
+                    onChange={(_, value) =>
+                      updateConfig({ clusteringInterval: value as number })
+                    }
+                    min={1}
+                    max={50}
+                    step={1}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    Base Station X: {config.bsX ?? config.width / 2}
+                  </Typography>
+                  <Slider
+                    value={config.bsX ?? config.width / 2}
+                    onChange={(_, value) =>
+                      updateConfig({ bsX: value as number })
+                    }
+                    min={0}
+                    max={config.width}
+                    step={10}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    Base Station Y: {config.bsY ?? -50}
+                  </Typography>
+                  <Slider
+                    value={config.bsY ?? -50}
+                    onChange={(_, value) =>
+                      updateConfig({ bsY: value as number })
+                    }
+                    min={-200}
+                    max={config.height}
+                    step={10}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
               </Grid>
             </AccordionDetails>
           </Accordion>
@@ -150,6 +222,54 @@ export function SettingsDialog({
                     min={0.1}
                     max={2.0}
                     step={0.1}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    Distance Factor: {config.distanceFactor}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Energy amplification factor based on distance
+                  </Typography>
+                  <Slider
+                    value={config.distanceFactor}
+                    onChange={(_, value) =>
+                      updateConfig({ distanceFactor: value as number })
+                    }
+                    min={0.0001}
+                    max={0.01}
+                    step={0.0001}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    Energy to Satellite: {config.energyToSatellite}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Energy consumed for transmitting to base station
+                  </Typography>
+                  <Slider
+                    value={config.energyToSatellite}
+                    onChange={(_, value) =>
+                      updateConfig({ energyToSatellite: value as number })
+                    }
+                    min={1}
+                    max={20}
+                    step={0.5}
                     valueLabelDisplay="auto"
                   />
                 </Grid>
@@ -235,6 +355,135 @@ export function SettingsDialog({
                     valueLabelDisplay="auto"
                   />
                 </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    History Window: {config.historyWindow || 5}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Number of historical rounds for temporal analysis
+                  </Typography>
+                  <Slider
+                    value={config.historyWindow || 5}
+                    onChange={(_, value) =>
+                      updateConfig({ historyWindow: value as number })
+                    }
+                    min={1}
+                    max={20}
+                    step={1}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+              </Grid>
+            </AccordionDetails>
+          </Accordion>
+
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <Typography variant="h6">EEUC Parameters</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    EEUC Threshold: {config.eeucThreshold?.toFixed(2) || 0.5}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Threshold for cluster head competition
+                  </Typography>
+                  <Slider
+                    value={config.eeucThreshold || 0.5}
+                    onChange={(_, value) =>
+                      updateConfig({ eeucThreshold: value as number })
+                    }
+                    min={0.1}
+                    max={1.0}
+                    step={0.05}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    EEUC RCompMax: {config.eeucRCompMax || 100}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Maximum competition radius
+                  </Typography>
+                  <Slider
+                    value={config.eeucRCompMax || 100}
+                    onChange={(_, value) =>
+                      updateConfig({ eeucRCompMax: value as number })
+                    }
+                    min={20}
+                    max={300}
+                    step={10}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    EEUC C: {config.eeucC?.toFixed(2) || 0.5}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Cluster radius adjustment factor
+                  </Typography>
+                  <Slider
+                    value={config.eeucC || 0.5}
+                    onChange={(_, value) =>
+                      updateConfig({ eeucC: value as number })
+                    }
+                    min={0.1}
+                    max={1.0}
+                    step={0.05}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    EEUC TdMax: {config.eeucTdMax || 200}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    gutterBottom
+                    display="block"
+                  >
+                    Maximum distance threshold
+                  </Typography>
+                  <Slider
+                    value={config.eeucTdMax || 200}
+                    onChange={(_, value) =>
+                      updateConfig({ eeucTdMax: value as number })
+                    }
+                    min={50}
+                    max={500}
+                    step={10}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
               </Grid>
             </AccordionDetails>
           </Accordion>
@@ -281,6 +530,46 @@ export function SettingsDialog({
                     }}
                     min={0}
                     max={50}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    Pressure Range: {config.minPressure} - {config.maxPressure}{" "}
+                    dbar
+                  </Typography>
+                  <Slider
+                    value={[config.minPressure, config.maxPressure]}
+                    onChange={(_, value) => {
+                      const [min, max] = value as number[];
+                      updateConfig({
+                        minPressure: min,
+                        maxPressure: max,
+                      });
+                    }}
+                    min={0}
+                    max={200}
+                    valueLabelDisplay="auto"
+                  />
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography gutterBottom>
+                    pH Range: {config.minPH} - {config.maxPH}
+                  </Typography>
+                  <Slider
+                    value={[config.minPH, config.maxPH]}
+                    onChange={(_, value) => {
+                      const [min, max] = value as number[];
+                      updateConfig({
+                        minPH: min,
+                        maxPH: max,
+                      });
+                    }}
+                    min={0}
+                    max={14}
+                    step={0.1}
                     valueLabelDisplay="auto"
                   />
                 </Grid>
