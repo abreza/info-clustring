@@ -101,6 +101,7 @@ export interface ClusteringAlgorithm {
     config: SimulationConfig,
     round?: number,
     sensorsData?: SensorData[],
-    historicalData?: SensorData[][]
+    historicalData?: SensorData[][],
+    environmentGrids?: EnvironmentGrids
   ): Cluster[];
 }

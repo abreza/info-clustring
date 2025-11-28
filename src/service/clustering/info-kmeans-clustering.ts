@@ -4,6 +4,7 @@ import {
   Cluster,
   SimulationConfig,
   ClusteringAlgorithm,
+  EnvironmentGrids,
 } from "../types";
 
 interface Centroid {
@@ -32,11 +33,12 @@ export class InfoKMeansClusteringAlgorithm implements ClusteringAlgorithm {
     config: SimulationConfig,
     round?: number,
     sensorsData?: SensorData[],
-    historicalData?: SensorData[][]
+    historicalData?: SensorData[][],
+    environmentGrids?: EnvironmentGrids
   ): Cluster[] {
     this.nearestNeighbors = config.nearestNeighbors || 6;
     this.entropyBins = config.entropyBins || 10;
-    this.informationThreshold = config.informationThreshold || 0.7;
+    this.informationThreshold = 0.2;
     this.historyWindow = config.historyWindow || 10;
 
     const aliveSensors = sensors.filter((sensor) => sensor.energy > 0);
@@ -55,7 +57,7 @@ export class InfoKMeansClusteringAlgorithm implements ClusteringAlgorithm {
     if (round && round > 0 && this.hasMinimumHistory()) {
       activeSensors = this.selectInformativeNodesWithHistory(
         aliveSensors,
-        config
+        environmentGrids!
       );
     }
 
@@ -117,7 +119,7 @@ export class InfoKMeansClusteringAlgorithm implements ClusteringAlgorithm {
 
   private selectInformativeNodesWithHistory(
     sensors: Sensor[],
-    config: SimulationConfig
+    environmentGrids: EnvironmentGrids
   ): Sensor[] {
     const informationValues = new Map<number, number>();
 
@@ -141,7 +143,7 @@ export class InfoKMeansClusteringAlgorithm implements ClusteringAlgorithm {
       const informationContent = this.calculateHistoricalInformationContent(
         sensorHistory,
         nearestNeighborsHistory,
-        config
+        environmentGrids
       );
       informationValues.set(sensor.id, informationContent);
     }
@@ -149,6 +151,8 @@ export class InfoKMeansClusteringAlgorithm implements ClusteringAlgorithm {
     const activeSensors: Sensor[] = [];
     for (const sensor of sensors) {
       const info = informationValues.get(sensor.id) ?? 1;
+
+      console.log(info);
 
       if (info >= this.informationThreshold) {
         sensor.isAsleep = false;
@@ -202,42 +206,53 @@ export class InfoKMeansClusteringAlgorithm implements ClusteringAlgorithm {
   private calculateHistoricalInformationContent(
     targetHistory: SensorData[],
     neighborsHistory: SensorData[][],
-    config: SimulationConfig
+    environmentGrids: EnvironmentGrids
   ): number {
     if (neighborsHistory.length === 0 || targetHistory.length < 2) return 1.0;
+
+    const getGridMinMax = (grid: number[][]) => {
+      const flatGrid = grid.flat();
+      return { min: Math.min(...flatGrid), max: Math.max(...flatGrid) };
+    };
+
+    const salinityRange = getGridMinMax(environmentGrids.salinity);
+
+    const pressureRange = getGridMinMax(environmentGrids.pressure);
+
+    const temperatureRange = getGridMinMax(environmentGrids.temperature);
+
+    const phRange = getGridMinMax(environmentGrids.ph);
 
     const salinityEntropy = this.calculateHistoricalConditionalEntropy(
       targetHistory.map((d) => d.salinity),
       neighborsHistory.map((nh) => nh.map((d) => d.salinity)),
-      config.minSalinity,
-      config.maxSalinity
+      salinityRange.min,
+      salinityRange.max
     );
 
     const pressureEntropy = this.calculateHistoricalConditionalEntropy(
       targetHistory.map((d) => d.pressure),
       neighborsHistory.map((nh) => nh.map((d) => d.pressure)),
-      config.minPressure,
-      config.maxPressure
+      pressureRange.min,
+      pressureRange.max
     );
 
     const temperatureEntropy = this.calculateHistoricalConditionalEntropy(
       targetHistory.map((d) => d.temperature),
       neighborsHistory.map((nh) => nh.map((d) => d.temperature)),
-      config.minTemperature,
-      config.maxTemperature
+      temperatureRange.min,
+      temperatureRange.max
     );
 
     const phEntropy = this.calculateHistoricalConditionalEntropy(
       targetHistory.map((d) => d.ph),
       neighborsHistory.map((nh) => nh.map((d) => d.ph)),
-      config.minPH,
-      config.maxPH
+      phRange.min,
+      phRange.max
     );
 
     const avgEntropy =
       (salinityEntropy + pressureEntropy + temperatureEntropy + phEntropy) / 4;
-
-    console.log(avgEntropy);
 
     const maxPossibleEntropy = Math.log2(this.entropyBins);
     const normalizedEntropy = avgEntropy / maxPossibleEntropy;
@@ -324,7 +339,9 @@ export class InfoKMeansClusteringAlgorithm implements ClusteringAlgorithm {
   }
 
   private discretizeValue(value: number, min: number, max: number): number {
-    const normalized = Math.max(0, Math.min(1, (value - min) / (max - min)));
+    const range = max - min;
+    if (range === 0) return 0;
+    const normalized = Math.max(0, Math.min(1, (value - min) / range));
     const binIndex = Math.floor(normalized * (this.entropyBins - 1));
     return Math.max(0, Math.min(this.entropyBins - 1, binIndex));
   }
@@ -374,10 +391,12 @@ export class InfoKMeansClusteringAlgorithm implements ClusteringAlgorithm {
         }
       }
 
-      if (!nearestCluster.sleepingMembers) {
-        nearestCluster.sleepingMembers = [];
+      if (nearestCluster) {
+        if (!nearestCluster.sleepingMembers) {
+          nearestCluster.sleepingMembers = [];
+        }
+        nearestCluster.sleepingMembers.push(sleepingSensor);
       }
-      nearestCluster.sleepingMembers.push(sleepingSensor);
     }
   }
 

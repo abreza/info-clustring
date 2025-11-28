@@ -136,7 +136,7 @@ export class EnvironmentModule {
     const max = this.config[maxKey] as number;
     const range = max - min;
 
-    const noiseMagnitude = 0.03 * range;
+    const noiseMagnitude = 0.02 * range;
 
     for (let i = 0; i < this.gridHeight; i++) {
       for (let j = 0; j < this.gridWidth; j++) {

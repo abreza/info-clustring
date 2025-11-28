@@ -241,7 +241,9 @@ export class WSNSimulationEngine {
             algorithmSensors,
             this.config,
             round,
-            sensorsData
+            sensorsData,
+            undefined,
+            this.environmentModule.getGrids()
           );
         }
         lastClusteringRound = round;
