@@ -2,11 +2,7 @@ import React from "react";
 import { Box } from "@mui/material";
 import { NetworkLegend } from "./NetworkLegend";
 import { HeatmapLayer } from "./HeatmapLayer";
-import {
-  getAlgorithmColor,
-  getSensorRadius,
-  getEnergyHue,
-} from "../../utils/networkUtils";
+import { getSensorRadius, getEnergyHue } from "../../utils/networkUtils";
 import {
   Sensor,
   SensorData,
@@ -14,6 +10,7 @@ import {
   AlgorithmType,
   EnvironmentGrids,
 } from "@/service/types";
+import { getAlgorithmColor } from "@/constants";
 
 interface VisualizationTabProps {
   sensors: Sensor[];

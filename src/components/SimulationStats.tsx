@@ -6,6 +6,7 @@ import {
   Typography,
   LinearProgress,
   Grid,
+  alpha,
 } from "@mui/material";
 import {
   Timeline,
@@ -20,6 +21,7 @@ import {
   SimulationStats,
   AlgorithmType,
 } from "../service/types";
+import { getAlgorithmColor } from "../constants";
 
 interface SimulationStatsProps {
   simulationResult: SimulationResult | null;
@@ -55,18 +57,7 @@ export function SimulationStatsComponent({
     (currentRound / Math.max(algorithmResult.totalRounds, 1)) * 100;
   const networkHealth = (stats.aliveSensors / config.numSensors) * 100;
 
-  const getAlgorithmColor = (alg: AlgorithmType) => {
-    switch (alg) {
-      case "kmeans":
-        return "primary";
-      case "leach":
-        return "warning";
-      case "info-kmeans":
-        return "secondary";
-      default:
-        return "primary";
-    }
-  };
+  const algoColor = getAlgorithmColor(algorithm);
 
   const renderCurrentStats = () => (
     <Grid container spacing={2}>
@@ -149,13 +140,12 @@ export function SimulationStatsComponent({
           sx={{
             p: 2,
             textAlign: "center",
-            bgcolor: `${getAlgorithmColor(algorithm)}.50`,
+
+            bgcolor: alpha(algoColor, 0.1),
+            borderColor: alpha(algoColor, 0.3),
           }}
         >
-          <Typography
-            variant="h5"
-            color={`${getAlgorithmColor(algorithm)}.main`}
-          >
+          <Typography variant="h5" sx={{ color: algoColor }}>
             {algorithmResult.networkLifetime}
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -185,8 +175,15 @@ export function SimulationStatsComponent({
         <LinearProgress
           variant="determinate"
           value={progress}
-          sx={{ height: 8, borderRadius: 4 }}
-          color={getAlgorithmColor(algorithm)}
+          sx={{
+            height: 8,
+            borderRadius: 4,
+
+            backgroundColor: alpha(algoColor, 0.2),
+            "& .MuiLinearProgress-bar": {
+              backgroundColor: algoColor,
+            },
+          }}
         />
       </Box>
 

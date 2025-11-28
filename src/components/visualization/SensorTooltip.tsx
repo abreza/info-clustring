@@ -8,7 +8,7 @@ import {
   Divider,
 } from "@mui/material";
 import { BatteryFull } from "@mui/icons-material";
-import { getAlgorithmColor } from "../../utils/networkUtils";
+import { getAlgorithmColor } from "@/constants";
 import type { SimulationConfig, AlgorithmType } from "@/service/types";
 import type { HoveredSensorInfo } from "./NetworkVisualization";
 

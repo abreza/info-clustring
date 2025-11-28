@@ -1,5 +1,5 @@
 import React from "react";
-import { getAlgorithmColor } from "../../utils/networkUtils";
+import { getAlgorithmColor } from "@/constants";
 import type { AlgorithmType } from "@/service/types";
 
 interface NetworkLegendProps {

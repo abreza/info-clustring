@@ -12,6 +12,10 @@ import {
 import { KMeansClusteringAlgorithm } from "./clustering/kmeans-clustering";
 import { LeachClusteringAlgorithm } from "./clustering/leach-clustering";
 import { InfoKMeansClusteringAlgorithm } from "./clustering/info-kmeans-clustering";
+import { HeedClusteringAlgorithm } from "./clustering/heed-clustering";
+import { RandomKMeansClusteringAlgorithm } from "./clustering/random-kmeans-clustering";
+import { EeucClusteringAlgorithm } from "./clustering/eeuc-clustering";
+import { LcssmClusteringAlgorithm } from "./clustering/lcssm-clustering";
 import { EnvironmentModule } from "./environment/environment-module";
 
 export class WSNSimulationEngine {
@@ -21,8 +25,11 @@ export class WSNSimulationEngine {
   private kmeansAlgorithm: KMeansClusteringAlgorithm;
   private leachAlgorithm: LeachClusteringAlgorithm;
   private infoKmeansAlgorithm: InfoKMeansClusteringAlgorithm;
+  private heedAlgorithm: HeedClusteringAlgorithm;
+  private randomKmeansAlgorithm: RandomKMeansClusteringAlgorithm;
+  private eeucAlgorithm: EeucClusteringAlgorithm;
+  private lcssmAlgorithm: LcssmClusteringAlgorithm;
   private environmentModule: EnvironmentModule;
-
   private readonly EPS = 1e-4;
   private readonly EST_K = 6;
 
@@ -33,6 +40,10 @@ export class WSNSimulationEngine {
     this.kmeansAlgorithm = new KMeansClusteringAlgorithm();
     this.leachAlgorithm = new LeachClusteringAlgorithm();
     this.infoKmeansAlgorithm = new InfoKMeansClusteringAlgorithm();
+    this.heedAlgorithm = new HeedClusteringAlgorithm();
+    this.randomKmeansAlgorithm = new RandomKMeansClusteringAlgorithm();
+    this.eeucAlgorithm = new EeucClusteringAlgorithm();
+    this.lcssmAlgorithm = new LcssmClusteringAlgorithm();
     this.environmentModule = new EnvironmentModule(config);
   }
 
@@ -62,23 +73,49 @@ export class WSNSimulationEngine {
     );
   }
 
-  private getAliveSensors(sensors: Sensor[]): Sensor[] {
-    return sensors.filter((s) => s.energy > 0);
-  }
-
   private calculateEnergyConsumption(
     clusters: Cluster[],
     sensors: Sensor[],
     algorithm: AlgorithmType
   ): void {
+    const getDistToBS = (s: Sensor) => {
+      const bsX = this.config.bsX ?? this.config.width / 2;
+      const bsY = this.config.bsY ?? -1000;
+      return Math.sqrt(Math.pow(s.x - bsX, 2) + Math.pow(s.y - bsY, 2));
+    };
+
     clusters.forEach((cluster) => {
       const head = sensors.find((s) => s.id === cluster.headId);
       if (!head || head.energy <= 0) return;
 
       const members = cluster.members.filter((m) => m.id !== cluster.headId);
+
       const rxEnergy = members.length * this.config.energyRxElec;
       head.energy -= rxEnergy;
-      head.energy -= this.config.energyToSatellite;
+
+      if (algorithm === "eeuc") {
+        let txDistance = 0;
+        let relayNode: Sensor | undefined;
+
+        if (cluster.relayId !== undefined && cluster.relayId !== null) {
+          relayNode = sensors.find((s) => s.id === cluster.relayId);
+        }
+
+        if (relayNode && relayNode.energy > 0) {
+          txDistance = this.distance(head, relayNode);
+
+          relayNode.energy -= this.config.energyRxElec;
+        } else {
+          txDistance = getDistToBS(head);
+        }
+
+        const txEnergy =
+          this.config.energyTxElec +
+          this.config.distanceFactor * Math.pow(txDistance, 2);
+        head.energy -= txEnergy;
+      } else {
+        head.energy -= this.config.energyToSatellite;
+      }
 
       members.forEach((member) => {
         const memberSensor = sensors.find((s) => s.id === member.id);
@@ -96,7 +133,12 @@ export class WSNSimulationEngine {
         }
       });
 
-      if (algorithm === "info-kmeans" && cluster.sleepingMembers) {
+      if (
+        (algorithm === "info-kmeans" ||
+          algorithm === "random-kmeans" ||
+          algorithm === "lcssm") &&
+        cluster.sleepingMembers
+      ) {
         cluster.sleepingMembers.forEach((sleepingMember) => {
           const memberSensor = sensors.find((s) => s.id === sleepingMember.id);
           if (!memberSensor || memberSensor.energy <= 0) return;
@@ -191,12 +233,30 @@ export class WSNSimulationEngine {
       this.infoKmeansAlgorithm.clearHistory();
     }
 
-    const clusteringAlgorithm =
-      algorithm === "kmeans"
-        ? this.kmeansAlgorithm
-        : algorithm === "leach"
-        ? this.leachAlgorithm
-        : this.infoKmeansAlgorithm;
+    let clusteringAlgorithm;
+    switch (algorithm) {
+      case "kmeans":
+        clusteringAlgorithm = this.kmeansAlgorithm;
+        break;
+      case "leach":
+        clusteringAlgorithm = this.leachAlgorithm;
+        break;
+      case "heed":
+        clusteringAlgorithm = this.heedAlgorithm;
+        break;
+      case "random-kmeans":
+        clusteringAlgorithm = this.randomKmeansAlgorithm;
+        break;
+      case "eeuc":
+        clusteringAlgorithm = this.eeucAlgorithm;
+        break;
+      case "lcssm":
+        clusteringAlgorithm = this.lcssmAlgorithm;
+        break;
+      default:
+        clusteringAlgorithm = this.infoKmeansAlgorithm;
+        break;
+    }
 
     const lastKnown = new Map<number, SensorData>();
 
@@ -228,13 +288,22 @@ export class WSNSimulationEngine {
         lastClusteringRound === -1;
 
       if (shouldRecluster) {
-        if (algorithm === "kmeans") {
-          clusters = clusteringAlgorithm.cluster(algorithmSensors, this.config);
+        if (
+          algorithm === "kmeans" ||
+          algorithm === "heed" ||
+          algorithm === "random-kmeans" ||
+          algorithm === "eeuc"
+        ) {
+          clusters = clusteringAlgorithm.cluster(
+            algorithmSensors,
+            this.config,
+            round
+          );
         } else if (algorithm === "leach") {
           clusters = clusteringAlgorithm.cluster(
             algorithmSensors,
             this.config,
-            Math.floor(round / this.config.clusteringInterval)
+            round
           );
         } else {
           clusters = clusteringAlgorithm.cluster(
@@ -304,7 +373,11 @@ export class WSNSimulationEngine {
       }
       estimationErrors.push(sampleCnt ? maeSum / sampleCnt : 0);
 
-      if (algorithm === "info-kmeans") {
+      if (
+        algorithm === "info-kmeans" ||
+        algorithm === "random-kmeans" ||
+        algorithm === "lcssm"
+      ) {
         const active = algorithmSensors.filter(
           (s) => s.energy > 0 && !s.isAsleep
         );
@@ -358,7 +431,11 @@ export class WSNSimulationEngine {
       estimationErrors,
     };
 
-    if (algorithm === "info-kmeans") {
+    if (
+      algorithm === "info-kmeans" ||
+      algorithm === "random-kmeans" ||
+      algorithm === "lcssm"
+    ) {
       result.averageInformationNodes =
         informationNodeCounts > 0
           ? totalInformationNodes / informationNodeCounts
@@ -373,10 +450,21 @@ export class WSNSimulationEngine {
     results: { [K in AlgorithmType]: AlgorithmResult },
     maxRounds: number
   ): void {
-    const algorithms: AlgorithmType[] = ["kmeans", "leach", "info-kmeans"];
+    const algorithms: AlgorithmType[] = [
+      "kmeans",
+      "leach",
+      "heed",
+      "random-kmeans",
+      "info-kmeans",
+      "eeuc",
+      "lcssm",
+    ];
 
     for (const algorithm of algorithms) {
       const result = results[algorithm];
+
+      if (!result) continue;
+
       const currentRounds = result.totalRounds;
 
       if (currentRounds < maxRounds) {
@@ -439,13 +527,21 @@ export class WSNSimulationEngine {
     const algorithmResults = {
       kmeans: this.runSingleAlgorithm("kmeans", maxRounds),
       leach: this.runSingleAlgorithm("leach", maxRounds),
+      heed: this.runSingleAlgorithm("heed", maxRounds),
+      "random-kmeans": this.runSingleAlgorithm("random-kmeans", maxRounds),
       "info-kmeans": this.runSingleAlgorithm("info-kmeans", maxRounds),
+      eeuc: this.runSingleAlgorithm("eeuc", maxRounds),
+      lcssm: this.runSingleAlgorithm("lcssm", maxRounds),
     };
 
     const maxAchievedRounds = Math.max(
       algorithmResults.kmeans.totalRounds,
       algorithmResults.leach.totalRounds,
-      algorithmResults["info-kmeans"].totalRounds
+      algorithmResults.heed.totalRounds,
+      algorithmResults["random-kmeans"].totalRounds,
+      algorithmResults["info-kmeans"].totalRounds,
+      algorithmResults["eeuc"].totalRounds,
+      algorithmResults["lcssm"].totalRounds
     );
 
     this.calculateExtendedErrors(algorithmResults, maxAchievedRounds);

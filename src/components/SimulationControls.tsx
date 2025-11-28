@@ -1,4 +1,3 @@
-// src/components/SimulationControls.tsx - Updated with info-kmeans
 import React from "react";
 import {
   Box,
@@ -12,6 +11,7 @@ import {
 } from "@mui/material";
 import { Refresh, Settings } from "@mui/icons-material";
 import { AlgorithmType } from "../service/types";
+import { ALGORITHM_LABELS } from "../constants";
 
 interface SimulationControlsProps {
   isLoading: boolean;
@@ -51,13 +51,13 @@ export function SimulationControls({
             value={algorithm}
             label="Clustering Algorithm"
             onChange={(e) => onAlgorithmChange(e.target.value as AlgorithmType)}
-            disabled={isLoading}
+            disabled={isLoading || isRunning}
           >
-            <MenuItem value="kmeans">K-Means Clustering</MenuItem>
-            <MenuItem value="leach">LEACH Protocol</MenuItem>
-            <MenuItem value="info-kmeans">
-              Info-KMeans (Information-Aware)
-            </MenuItem>
+            {Object.entries(ALGORITHM_LABELS).map(([key, label]) => (
+              <MenuItem key={key} value={key}>
+                {label}
+              </MenuItem>
+            ))}
           </Select>
         </FormControl>
 

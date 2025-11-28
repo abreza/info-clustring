@@ -19,6 +19,7 @@ export interface Cluster {
   headId: number;
   members: Sensor[];
   sleepingMembers?: Sensor[];
+  relayId?: number | null;
 }
 
 export interface EnvironmentGrids {
@@ -62,9 +63,23 @@ export interface SimulationConfig {
   nearestNeighbors?: number;
   entropyBins?: number;
   historyWindow?: number;
+
+  eeucThreshold?: number;
+  eeucRCompMax?: number;
+  eeucC?: number;
+  eeucTdMax?: number;
+  bsX?: number;
+  bsY?: number;
 }
 
-export type AlgorithmType = "kmeans" | "leach" | "info-kmeans";
+export type AlgorithmType =
+  | "kmeans"
+  | "leach"
+  | "info-kmeans"
+  | "heed"
+  | "random-kmeans"
+  | "eeuc"
+  | "lcssm";
 
 export interface AlgorithmResult {
   history: HistoryItem[];

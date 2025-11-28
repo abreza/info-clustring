@@ -1,19 +1,6 @@
 import type { NetworkData } from "@/hooks/useNetworkData";
-import type { AlgorithmType, Sensor, SimulationConfig } from "../service/types";
+import type { Sensor, SimulationConfig } from "../service/types";
 import type { GridRowData } from "@/components/visualization/DataGridTab";
-
-export const getAlgorithmColor = (algorithm: AlgorithmType): string => {
-  switch (algorithm) {
-    case "kmeans":
-      return "#2196F3";
-    case "leach":
-      return "#FF9800";
-    case "info-kmeans":
-      return "#9C27B0";
-    default:
-      return "#2196F3";
-  }
-};
 
 export const getEnergyColor = (energyPercentage: number): string => {
   if (energyPercentage > 50) return "#4caf50";
