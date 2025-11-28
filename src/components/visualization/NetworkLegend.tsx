@@ -1,6 +1,10 @@
 import React from "react";
-import { NetworkLegendProps } from "../../types/NetworkVisualization.types";
 import { getAlgorithmColor } from "../../utils/networkUtils";
+import type { AlgorithmType } from "@/service/types";
+
+interface NetworkLegendProps {
+  algorithm: AlgorithmType;
+}
 
 export function NetworkLegend({ algorithm }: NetworkLegendProps) {
   const algorithmColor = getAlgorithmColor(algorithm);

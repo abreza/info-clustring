@@ -614,8 +614,6 @@ export function Timeline({
     </ResponsiveContainer>
   );
 
-  console.log(chartData);
-
   const renderErrorChart = () => (
     <ResponsiveContainer width="100%" height={300}>
       <LineChart

@@ -207,13 +207,13 @@ export class WSNSimulationEngine {
     let informationNodeCounts = 0;
     let totalEnergySaved = 0;
 
-    let networkEnded = false;
     while (round < maxRounds) {
+      this.environmentModule.updateEnvironment();
+
       const aliveSensors = algorithmSensors.filter((s) => s.energy > 0);
 
       if (aliveSensors.length === 0) {
         if (networkLifetime === 0) networkLifetime = round;
-        networkEnded = true;
         break;
       }
 
@@ -341,6 +341,7 @@ export class WSNSimulationEngine {
         })),
         sensorsData: [...sensorsData],
         sleepingNodes: sleepingNodes.length ? sleepingNodes : undefined,
+        environmentGrids: this.environmentModule.getGrids(),
       });
 
       round++;

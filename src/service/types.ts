@@ -21,10 +21,18 @@ export interface Cluster {
   sleepingMembers?: Sensor[];
 }
 
+export interface EnvironmentGrids {
+  temperature: number[][];
+  salinity: number[][];
+  pressure: number[][];
+  ph: number[][];
+}
+
 export interface HistoryItem {
   clusters: Cluster[];
   sensorsData: SensorData[];
   sleepingNodes?: number[];
+  environmentGrids?: EnvironmentGrids;
 }
 
 export interface SimulationConfig {
@@ -50,7 +58,6 @@ export interface SimulationConfig {
   minPH: number;
   maxPH: number;
 
-  /* Info-KMeans-specific */
   informationThreshold?: number;
   nearestNeighbors?: number;
   entropyBins?: number;

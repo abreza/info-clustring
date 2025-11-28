@@ -1,298 +1,196 @@
 import { SimulationConfig, SensorData } from "../types";
 
+const interpolate = (
+  q11: number,
+  q12: number,
+  q21: number,
+  q22: number,
+  x1: number,
+  x2: number,
+  y1: number,
+  y2: number,
+  x: number,
+  y: number
+): number => {
+  if (x1 === x2 || y1 === y2) {
+    return q11;
+  }
+  const x2x1 = x2 - x1;
+  const y2y1 = y2 - y1;
+  const x2x = x2 - x;
+  const xx1 = x - x1;
+  const y2y = y2 - y;
+  const yy1 = y - y1;
+  const f1 = (x2x / x2x1) * q11 + (xx1 / x2x1) * q21;
+  const f2 = (x2x / x2x1) * q12 + (xx1 / x2x1) * q22;
+  return (y2y / y2y1) * f1 + (yy1 / y2y1) * f2;
+};
+
 export class EnvironmentModule {
   private config: SimulationConfig;
-  private environmentState: Map<string, EnvironmentPoint>;
-  private noiseGenerators: NoiseGenerator[];
+  private gridResolution: number;
+  private gridWidth: number;
+  private gridHeight: number;
+
+  private temperatureGrid: number[][];
+  private salinityGrid: number[][];
+  private pressureGrid: number[][];
+  private phGrid: number[][];
+
+  private readonly diffusionRate = 0.2;
 
   constructor(config: SimulationConfig) {
     this.config = config;
-    this.environmentState = new Map();
-    this.noiseGenerators = this.initializeNoiseGenerators();
-    this.initializeEnvironment();
+
+    this.gridResolution = 25;
+    this.gridWidth = Math.ceil(this.config.width / this.gridResolution);
+    this.gridHeight = Math.ceil(this.config.height / this.gridResolution);
+
+    this.temperatureGrid = this.initializeGrid(
+      "minTemperature",
+      "maxTemperature"
+    );
+    this.salinityGrid = this.initializeGrid("minSalinity", "maxSalinity");
+    this.pressureGrid = this.initializeGrid("minPressure", "maxPressure");
+    this.phGrid = this.initializeGrid("minPH", "maxPH");
   }
 
-  private initializeNoiseGenerators(): NoiseGenerator[] {
-    return [
-      new NoiseGenerator(0.01, 1.0, 1234),
-      new NoiseGenerator(0.05, 0.5, 5678),
-      new NoiseGenerator(0.1, 0.25, 9012),
-    ];
-  }
+  private initializeGrid(
+    minKey: keyof SimulationConfig,
+    maxKey: keyof SimulationConfig
+  ): number[][] {
+    let grid: number[][] = [];
+    const min = this.config[minKey] as number;
+    const max = this.config[maxKey] as number;
 
-  private initializeEnvironment(): void {
-    const gridSize = 20;
-    const stepX = this.config.width / gridSize;
-    const stepY = this.config.height / gridSize;
-
-    for (let i = 0; i <= gridSize; i++) {
-      for (let j = 0; j <= gridSize; j++) {
-        const x = i * stepX;
-        const y = j * stepY;
-        const key = this.getGridKey(x, y);
-
-        this.environmentState.set(key, this.generateBaseEnvironmentPoint(x, y));
+    for (let i = 0; i < this.gridHeight; i++) {
+      grid[i] = [];
+      for (let j = 0; j < this.gridWidth; j++) {
+        grid[i][j] = min + Math.random() * (max - min);
       }
     }
+
+    return grid;
   }
 
-  private getGridKey(x: number, y: number): string {
-    const gridX = Math.floor(x / (this.config.width / 20));
-    const gridY = Math.floor(y / (this.config.height / 20));
-    return `${gridX}_${gridY}`;
+  public updateEnvironment(): void {
+    this.temperatureGrid = this.applyAutomatonRule(this.temperatureGrid);
+    this.salinityGrid = this.applyAutomatonRule(this.salinityGrid);
+    this.pressureGrid = this.applyAutomatonRule(this.pressureGrid);
+    this.phGrid = this.applyAutomatonRule(this.phGrid);
+
+    this.addNoiseToGrid(
+      this.temperatureGrid,
+      "minTemperature",
+      "maxTemperature"
+    );
+    this.addNoiseToGrid(this.salinityGrid, "minSalinity", "maxSalinity");
+    this.addNoiseToGrid(this.pressureGrid, "minPressure", "maxPressure");
+    this.addNoiseToGrid(this.phGrid, "minPH", "maxPH");
   }
 
-  private generateBaseEnvironmentPoint(x: number, y: number): EnvironmentPoint {
-    const normX = x / this.config.width;
-    const normY = y / this.config.height;
+  private applyAutomatonRule(grid: number[][]): number[][] {
+    const newGrid: number[][] = grid.map((row) => [...row]);
 
-    const depth = normY;
+    for (let i = 0; i < this.gridHeight; i++) {
+      for (let j = 0; j < this.gridWidth; j++) {
+        let neighborSum = 0;
+        let neighborCount = 0;
 
-    const baseSalinity = this.lerp(
-      this.config.minSalinity,
-      this.config.maxSalinity,
-      0.3 + 0.4 * Math.sin(normX * Math.PI * 2) + 0.3 * depth
-    );
+        for (let di = -1; di <= 1; di++) {
+          for (let dj = -1; dj <= 1; dj++) {
+            if (di === 0 && dj === 0) continue;
+            const ni = i + di;
+            const nj = j + dj;
 
-    const basePressure = this.lerp(
-      this.config.minPressure,
-      this.config.maxPressure,
-      0.2 + 0.8 * depth + 0.1 * Math.cos(normX * Math.PI * 3)
-    );
+            if (
+              ni >= 0 &&
+              ni < this.gridHeight &&
+              nj >= 0 &&
+              nj < this.gridWidth
+            ) {
+              neighborSum += grid[ni][nj];
+              neighborCount++;
+            }
+          }
+        }
 
-    const baseTemperature = this.lerp(
-      this.config.minTemperature,
-      this.config.maxTemperature,
-      0.8 - 0.6 * depth + 0.2 * Math.sin(normX * Math.PI * 4)
-    );
+        const averageOfNeighbors =
+          neighborCount > 0 ? neighborSum / neighborCount : grid[i][j];
+        const currentValue = grid[i][j];
 
-    const basePH = this.lerp(
-      this.config.minPH,
-      this.config.maxPH,
-      0.5 + 0.3 * Math.cos(normX * Math.PI * 2) - 0.2 * depth
-    );
+        newGrid[i][j] =
+          (1 - this.diffusionRate) * currentValue +
+          this.diffusionRate * averageOfNeighbors;
+      }
+    }
+    return newGrid;
+  }
 
-    return {
-      salinity: this.clamp(
-        baseSalinity,
-        this.config.minSalinity,
-        this.config.maxSalinity
-      ),
-      pressure: this.clamp(
-        basePressure,
-        this.config.minPressure,
-        this.config.maxPressure
-      ),
-      temperature: this.clamp(
-        baseTemperature,
-        this.config.minTemperature,
-        this.config.maxTemperature
-      ),
-      ph: this.clamp(basePH, this.config.minPH, this.config.maxPH),
-    };
+  private addNoiseToGrid(
+    grid: number[][],
+    minKey: keyof SimulationConfig,
+    maxKey: keyof SimulationConfig
+  ): void {
+    const min = this.config[minKey] as number;
+    const max = this.config[maxKey] as number;
+    const range = max - min;
+
+    const noiseMagnitude = 0.03 * range;
+
+    for (let i = 0; i < this.gridHeight; i++) {
+      for (let j = 0; j < this.gridWidth; j++) {
+        const randomNoise = (Math.random() - 0.5) * noiseMagnitude;
+        const newValue = grid[i][j] + randomNoise;
+
+        grid[i][j] = Math.max(min, Math.min(max, newValue));
+      }
+    }
   }
 
   public getSensorData(
     x: number,
     y: number,
-    round: number
+    t: number
   ): Omit<SensorData, "id"> {
-    const basePoint = this.getInterpolatedEnvironmentPoint(x, y);
-
-    const timeVariation = this.getTemporalVariation(x, y, round);
-
-    const noise = this.getNoise(x, y, round);
-
-    const salinity = this.clamp(
-      basePoint.salinity + timeVariation.salinity + noise.salinity,
-      this.config.minSalinity,
-      this.config.maxSalinity
-    );
-
-    const pressure = this.clamp(
-      basePoint.pressure + timeVariation.pressure + noise.pressure,
-      this.config.minPressure,
-      this.config.maxPressure
-    );
-
-    const temperature = this.clamp(
-      basePoint.temperature + timeVariation.temperature + noise.temperature,
-      this.config.minTemperature,
-      this.config.maxTemperature
-    );
-
-    const ph = this.clamp(
-      basePoint.ph + timeVariation.ph + noise.ph,
-      this.config.minPH,
-      this.config.maxPH
-    );
+    const gridX = x / this.gridResolution;
+    const gridY = y / this.gridResolution;
 
     return {
-      salinity: parseFloat(salinity.toFixed(2)),
-      pressure: parseFloat(pressure.toFixed(2)),
-      temperature: parseFloat(temperature.toFixed(2)),
-      ph: parseFloat(ph.toFixed(2)),
+      temperature: this.getValueFromGrid(this.temperatureGrid, gridX, gridY),
+      salinity: this.getValueFromGrid(this.salinityGrid, gridX, gridY),
+      pressure: this.getValueFromGrid(this.pressureGrid, gridX, gridY),
+      ph: this.getValueFromGrid(this.phGrid, gridX, gridY),
     };
   }
 
-  private getInterpolatedEnvironmentPoint(
-    x: number,
-    y: number
-  ): EnvironmentPoint {
-    const gridSize = 20;
-    const stepX = this.config.width / gridSize;
-    const stepY = this.config.height / gridSize;
+  private getValueFromGrid(grid: number[][], x: number, y: number): number {
+    const x1 = Math.floor(x);
+    const y1 = Math.floor(y);
+    const x2 = Math.min(x1 + 1, this.gridWidth - 1);
+    const y2 = Math.min(y1 + 1, this.gridHeight - 1);
 
-    const gridX = Math.floor(x / stepX);
-    const gridY = Math.floor(y / stepY);
+    const safeX1 = Math.max(0, x1);
+    const safeY1 = Math.max(0, y1);
 
-    const key = `${gridX}_${gridY}`;
-    const point = this.environmentState.get(key);
+    const q11 = grid[safeY1][safeX1];
+    const q12 = grid[y2][safeX1];
+    const q21 = grid[safeY1][x2];
+    const q22 = grid[y2][x2];
 
-    if (point) {
-      return point;
-    }
-
-    return this.generateBaseEnvironmentPoint(x, y);
+    return interpolate(q11, q12, q21, q22, x1, x2, y1, y2, x, y);
   }
 
-  private getTemporalVariation(
-    x: number,
-    y: number,
-    round: number
-  ): EnvironmentPoint {
-    const time = round * 0.01;
-    const normX = x / this.config.width;
-    const normY = y / this.config.height;
+  public getConfig(): SimulationConfig {
+    return this.config;
+  }
 
-    const tidalCycle = Math.sin(time * 2 * Math.PI) * 0.5;
-    const seasonalCycle = Math.cos(time * 0.1 * Math.PI) * 0.3;
-
-    const salinityRange =
-      (this.config.maxSalinity - this.config.minSalinity) * 0.05;
-    const pressureRange =
-      (this.config.maxPressure - this.config.minPressure) * 0.03;
-    const temperatureRange =
-      (this.config.maxTemperature - this.config.minTemperature) * 0.04;
-    const phRange = (this.config.maxPH - this.config.minPH) * 0.02;
-
+  public getGrids() {
     return {
-      salinity: salinityRange * (tidalCycle + seasonalCycle * normY),
-      pressure: pressureRange * (tidalCycle * 1.5 + seasonalCycle * 0.5),
-      temperature: temperatureRange * (seasonalCycle + tidalCycle * 0.3),
-      ph: phRange * (seasonalCycle * 0.7 + tidalCycle * normX),
+      temperature: this.temperatureGrid,
+      salinity: this.salinityGrid,
+      pressure: this.pressureGrid,
+      ph: this.phGrid,
     };
-  }
-
-  private getNoise(x: number, y: number, round: number): EnvironmentPoint {
-    let totalNoise = { salinity: 0, pressure: 0, temperature: 0, ph: 0 };
-
-    for (const generator of this.noiseGenerators) {
-      const noise = generator.getNoise(x, y, round);
-      totalNoise.salinity += noise * 0.5;
-      totalNoise.pressure += noise * 0.3;
-      totalNoise.temperature += noise * 0.4;
-      totalNoise.ph += noise * 0.2;
-    }
-
-    const salinityRange =
-      (this.config.maxSalinity - this.config.minSalinity) * 0.02;
-    const pressureRange =
-      (this.config.maxPressure - this.config.minPressure) * 0.01;
-    const temperatureRange =
-      (this.config.maxTemperature - this.config.minTemperature) * 0.02;
-    const phRange = (this.config.maxPH - this.config.minPH) * 0.01;
-
-    return {
-      salinity: totalNoise.salinity * salinityRange,
-      pressure: totalNoise.pressure * pressureRange,
-      temperature: totalNoise.temperature * temperatureRange,
-      ph: totalNoise.ph * phRange,
-    };
-  }
-
-  public updateEnvironment(): void {
-    this.regenerateEnvironmentAreas();
-  }
-
-  private regenerateEnvironmentAreas(): void {
-    const updateProbability = 0.05;
-
-    for (const [key, point] of this.environmentState.entries()) {
-      if (Math.random() < updateProbability) {
-        const [gridX, gridY] = key.split("_").map(Number);
-        const stepX = this.config.width / 20;
-        const stepY = this.config.height / 20;
-        const x = gridX * stepX;
-        const y = gridY * stepY;
-
-        const newPoint = this.generateBaseEnvironmentPoint(x, y);
-        const blendFactor = 0.1;
-
-        this.environmentState.set(key, {
-          salinity: this.lerp(point.salinity, newPoint.salinity, blendFactor),
-          pressure: this.lerp(point.pressure, newPoint.pressure, blendFactor),
-          temperature: this.lerp(
-            point.temperature,
-            newPoint.temperature,
-            blendFactor
-          ),
-          ph: this.lerp(point.ph, newPoint.ph, blendFactor),
-        });
-      }
-    }
-  }
-
-  private lerp(a: number, b: number, t: number): number {
-    return a + (b - a) * Math.max(0, Math.min(1, t));
-  }
-
-  private clamp(value: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, value));
-  }
-
-  public getEnvironmentHeatmap(parameter: keyof EnvironmentPoint): number[][] {
-    const resolution = 50;
-    const heatmap: number[][] = [];
-
-    for (let y = 0; y < resolution; y++) {
-      const row: number[] = [];
-      for (let x = 0; x < resolution; x++) {
-        const worldX = (x / resolution) * this.config.width;
-        const worldY = (y / resolution) * this.config.height;
-        const point = this.getInterpolatedEnvironmentPoint(worldX, worldY);
-        row.push(point[parameter]);
-      }
-      heatmap.push(row);
-    }
-
-    return heatmap;
-  }
-}
-
-interface EnvironmentPoint {
-  salinity: number;
-  pressure: number;
-  temperature: number;
-  ph: number;
-}
-
-class NoiseGenerator {
-  private frequency: number;
-  private amplitude: number;
-  private seed: number;
-
-  constructor(frequency: number, amplitude: number, seed: number) {
-    this.frequency = frequency;
-    this.amplitude = amplitude;
-    this.seed = seed;
-  }
-
-  public getNoise(x: number, y: number, t: number): number {
-    const value =
-      Math.sin(x * this.frequency + this.seed) *
-      Math.cos(y * this.frequency + this.seed * 1.5) *
-      Math.sin(t * this.frequency * 0.1 + this.seed * 2);
-    return value * this.amplitude;
   }
 }

@@ -8,8 +8,15 @@ import {
   Divider,
 } from "@mui/material";
 import { BatteryFull } from "@mui/icons-material";
-import { SensorTooltipProps } from "../../types/NetworkVisualization.types";
 import { getAlgorithmColor } from "../../utils/networkUtils";
+import type { SimulationConfig, AlgorithmType } from "@/service/types";
+import type { HoveredSensorInfo } from "./NetworkVisualization";
+
+interface SensorTooltipProps {
+  hoveredSensor: HoveredSensorInfo | null;
+  config: SimulationConfig;
+  algorithm: AlgorithmType;
+}
 
 export function SensorTooltip({
   hoveredSensor,
@@ -201,10 +208,7 @@ export function SensorTooltip({
             <>
               <Divider sx={{ my: 1 }} />
               <Typography variant="caption" color="secondary">
-                <strong>Info-KMeans:</strong>{" "}
-                {sensor.isAsleep
-                  ? "Low information content - conserving energy"
-                  : "High information content - actively monitoring"}
+                <strong>Info-KMeans:</strong> {sensor.isAsleep ? "Low" : "High"}
               </Typography>
             </>
           )}

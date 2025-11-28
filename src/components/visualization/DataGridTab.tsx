@@ -2,8 +2,30 @@ import React from "react";
 import { Box, Typography, Chip } from "@mui/material";
 import { BatteryFull } from "@mui/icons-material";
 import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
-import { DataGridTabProps } from "../../types/NetworkVisualization.types";
 import { formatValue } from "../../utils/networkUtils";
+
+export interface GridRowData {
+  id: number;
+  sensorId: number;
+  x: number;
+  y: number;
+  energy: number;
+  energyPercentage: number;
+  status: string;
+  isClusterHead: boolean;
+  clusterId?: number;
+  clusterRole: string;
+  memberCount?: number;
+  sleepingMemberCount?: number;
+  temperature?: number;
+  salinity?: number;
+  pressure?: number;
+  ph?: number;
+}
+
+interface DataGridTabProps {
+  gridData: GridRowData[];
+}
 
 export function DataGridTab({ gridData }: DataGridTabProps) {
   const columns: GridColDef[] = [
@@ -45,27 +67,6 @@ export function DataGridTab({ gridData }: DataGridTabProps) {
           />
           <Typography variant="body2">{params.value}</Typography>
         </Box>
-      ),
-    },
-    {
-      field: "energyPercentage",
-      headerName: "Energy %",
-      width: 100,
-      type: "number",
-      renderCell: (params: GridRenderCellParams) => (
-        <Typography
-          variant="body2"
-          sx={{
-            color:
-              params.value > 50
-                ? "success.main"
-                : params.value > 20
-                ? "warning.main"
-                : "error.main",
-          }}
-        >
-          {params.value}%
-        </Typography>
       ),
     },
     {

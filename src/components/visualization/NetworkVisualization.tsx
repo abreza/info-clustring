@@ -5,29 +5,56 @@ import {
   Typography,
   Chip,
   Tooltip,
-  IconButton,
   Tabs,
   Tab,
+  ToggleButtonGroup,
+  ToggleButton,
 } from "@mui/material";
 import {
   NetworkWifi,
-  Fullscreen,
-  Download,
-  RemoveRedEye,
   Visibility,
   TableChart,
+  Thermostat,
+  Waves,
+  Compress,
+  Science,
 } from "@mui/icons-material";
-import { Sensor } from "../../service/types";
 import {
-  NetworkVisualizationProps,
-  HoveredSensorInfo,
-} from "../../types/NetworkVisualization.types";
+  AlgorithmType,
+  Sensor,
+  SensorData,
+  SimulationConfig,
+  SimulationResult,
+  SimulationStats,
+} from "../../service/types";
 import { useNetworkData } from "../../hooks/useNetworkData";
 import { prepareGridData } from "../../utils/networkUtils";
 import { SensorTooltip } from "./SensorTooltip";
 import { VisualizationTab } from "./VisualizationTab";
 import { DataGridTab } from "./DataGridTab";
 import { NetworkStats } from "./NetworkStats";
+
+interface NetworkVisualizationProps {
+  simulationResult: SimulationResult | null;
+  config: SimulationConfig;
+  currentRound: number;
+  stats: SimulationStats | null;
+  algorithm: AlgorithmType;
+}
+
+export interface HoveredSensorInfo {
+  sensor: Sensor;
+  sensorData?: SensorData;
+  isClusterHead: boolean;
+  clusterInfo?: {
+    clusterId: number;
+    memberCount: number;
+    sleepingMemberCount?: number;
+  };
+  position: { x: number; y: number };
+}
+
+type HeatmapParameter = "temperature" | "salinity" | "pressure" | "ph" | "none";
 
 export function NetworkVisualization({
   simulationResult,
@@ -40,18 +67,17 @@ export function NetworkVisualization({
     null
   );
   const [tabValue, setTabValue] = useState(0);
+  const [selectedHeatmap, setSelectedHeatmap] =
+    useState<HeatmapParameter>("none");
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Get current round data using custom hook
   const networkData = useNetworkData(simulationResult, algorithm, currentRound);
-  const { sensors, clusters, sensorData } = networkData;
+  const { sensors, clusters, sensorData, environmentGrids } = networkData;
 
-  // Prepare data for the DataGrid
   const gridData = useMemo(() => {
     return prepareGridData(networkData, config);
   }, [networkData, config]);
 
-  // Handle sensor hover
   const handleSensorHover = (sensor: Sensor, event: React.MouseEvent) => {
     const currentSensorData = sensorData.find((sd) => sd.id === sensor.id);
     const cluster = clusters.find((c) => c.headId === sensor.id);
@@ -89,6 +115,13 @@ export function NetworkVisualization({
     setTabValue(newValue);
   };
 
+  const handleHeatmapChange = (
+    _: React.MouseEvent<HTMLElement>,
+    newParam: HeatmapParameter | null
+  ) => {
+    setSelectedHeatmap(newParam || "none");
+  };
+
   if (!simulationResult) {
     return (
       <Paper
@@ -102,9 +135,11 @@ export function NetworkVisualization({
       >
         <Box textAlign="center">
           <NetworkWifi sx={{ fontSize: 64, color: "text.secondary", mb: 2 }} />
+
           <Typography variant="h6" color="text.secondary">
             No simulation data
           </Typography>
+
           <Typography variant="body2" color="text.secondary">
             Start a simulation to visualize the sensor network
           </Typography>
@@ -114,7 +149,7 @@ export function NetworkVisualization({
   }
 
   return (
-    <Paper sx={{ p: 2, height: 500, position: "relative" }}>
+    <Paper sx={{ p: 2, position: "relative" }}>
       <Box
         display="flex"
         justifyContent="space-between"
@@ -125,6 +160,7 @@ export function NetworkVisualization({
           <Typography variant="h6">
             Network Data - Round {currentRound}
           </Typography>
+
           <Chip
             label={algorithm.toUpperCase()}
             color={
@@ -138,23 +174,57 @@ export function NetworkVisualization({
             variant="outlined"
           />
         </Box>
-        <Box display="flex" gap={1}>
-          <Tooltip title="Hover over sensors for detailed information">
-            <IconButton size="small">
-              <RemoveRedEye />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Fullscreen View">
-            <IconButton size="small">
-              <Fullscreen />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Export Visualization">
-            <IconButton size="small">
-              <Download />
-            </IconButton>
-          </Tooltip>
-        </Box>
+      </Box>
+
+      <Box display="flex" justifyContent="flex-end" mb={1}>
+        <Tooltip title="Select Heatmap Background">
+          <ToggleButtonGroup
+            value={selectedHeatmap}
+            exclusive
+            onChange={handleHeatmapChange}
+            size="small"
+          >
+            <ToggleButton value="temperature" aria-label="temperature">
+              <Thermostat fontSize="small" />
+              <Typography
+                variant="caption"
+                sx={{ ml: 1, display: { xs: "none", sm: "block" } }}
+              >
+                Temp
+              </Typography>
+            </ToggleButton>
+
+            <ToggleButton value="salinity" aria-label="salinity">
+              <Waves fontSize="small" />
+              <Typography
+                variant="caption"
+                sx={{ ml: 1, display: { xs: "none", sm: "block" } }}
+              >
+                Salinity
+              </Typography>
+            </ToggleButton>
+
+            <ToggleButton value="pressure" aria-label="pressure">
+              <Compress fontSize="small" />
+              <Typography
+                variant="caption"
+                sx={{ ml: 1, display: { xs: "none", sm: "block" } }}
+              >
+                Pressure
+              </Typography>
+            </ToggleButton>
+
+            <ToggleButton value="ph" aria-label="ph">
+              <Science fontSize="small" />
+              <Typography
+                variant="caption"
+                sx={{ ml: 1, display: { xs: "none", sm: "block" } }}
+              >
+                pH
+              </Typography>
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Tooltip>
       </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
@@ -164,6 +234,7 @@ export function NetworkVisualization({
             iconPosition="start"
             label="Network Visualization"
           />
+
           <Tab
             icon={<TableChart />}
             iconPosition="start"
@@ -183,7 +254,10 @@ export function NetworkVisualization({
             onSensorHover={handleSensorHover}
             onSensorLeave={handleSensorLeave}
             svgRef={svgRef}
+            environmentGrids={environmentGrids}
+            selectedHeatmap={selectedHeatmap}
           />
+
           <SensorTooltip
             hoveredSensor={hoveredSensor}
             config={config}
@@ -191,7 +265,6 @@ export function NetworkVisualization({
           />
         </Box>
       )}
-
       {tabValue === 1 && <DataGridTab gridData={gridData} />}
 
       <NetworkStats

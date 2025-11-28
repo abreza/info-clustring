@@ -1,7 +1,20 @@
 import React from "react";
 import { Box, Chip } from "@mui/material";
 import { NetworkWifi, BatteryFull, RemoveRedEye } from "@mui/icons-material";
-import { NetworkStatsProps } from "../../types/NetworkVisualization.types";
+import type {
+  SimulationStats,
+  SimulationConfig,
+  AlgorithmType,
+  SimulationResult,
+} from "@/service/types";
+
+interface NetworkStatsProps {
+  stats: SimulationStats | null;
+  config: SimulationConfig;
+  clusters: any[];
+  algorithm: AlgorithmType;
+  simulationResult: SimulationResult | null;
+}
 
 export function NetworkStats({
   stats,

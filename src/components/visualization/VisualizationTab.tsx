@@ -1,12 +1,32 @@
 import React from "react";
 import { Box } from "@mui/material";
-import { VisualizationTabProps } from "../../types/NetworkVisualization.types";
 import { NetworkLegend } from "./NetworkLegend";
+import { HeatmapLayer } from "./HeatmapLayer";
 import {
   getAlgorithmColor,
   getSensorRadius,
   getEnergyHue,
 } from "../../utils/networkUtils";
+import {
+  Sensor,
+  SensorData,
+  SimulationConfig,
+  AlgorithmType,
+  EnvironmentGrids,
+} from "@/service/types";
+
+interface VisualizationTabProps {
+  sensors: Sensor[];
+  clusters: any[];
+  sensorData: SensorData[];
+  config: SimulationConfig;
+  algorithm: AlgorithmType;
+  onSensorHover: (sensor: Sensor, event: React.MouseEvent) => void;
+  onSensorLeave: () => void;
+  svgRef: React.RefObject<SVGSVGElement | null>;
+  environmentGrids?: EnvironmentGrids;
+  selectedHeatmap: "temperature" | "salinity" | "pressure" | "ph" | "none";
+}
 
 export function VisualizationTab({
   sensors,
@@ -16,8 +36,17 @@ export function VisualizationTab({
   onSensorHover,
   onSensorLeave,
   svgRef,
+  environmentGrids,
+  selectedHeatmap,
 }: VisualizationTabProps) {
   const algorithmColor = getAlgorithmColor(algorithm);
+
+  const getHeatmapGrid = () => {
+    if (!environmentGrids || selectedHeatmap === "none") return null;
+    return environmentGrids[selectedHeatmap];
+  };
+
+  const heatmapGrid = getHeatmapGrid();
 
   return (
     <Box
@@ -52,7 +81,13 @@ export function VisualizationTab({
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
-
+        {heatmapGrid && selectedHeatmap !== "none" && (
+          <HeatmapLayer
+            grid={heatmapGrid}
+            config={config}
+            paramKey={selectedHeatmap}
+          />
+        )}
         {clusters.map((cluster) => {
           const head = sensors.find((s) => s.id === cluster.headId);
           if (!head || head.energy <= 0) return null;
@@ -79,7 +114,6 @@ export function VisualizationTab({
                     strokeDasharray="2,2"
                   />
                 ))}
-
               {algorithm === "info-kmeans" &&
                 cluster.sleepingMembers &&
                 cluster.sleepingMembers
@@ -100,7 +134,6 @@ export function VisualizationTab({
             </g>
           );
         })}
-
         {sensors.map((sensor) => {
           const isAlive = sensor.energy > 0;
           const isAsleep = sensor.isAsleep && isAlive;
@@ -125,7 +158,7 @@ export function VisualizationTab({
                   isClusterHead ? algorithmColor : isAlive ? "#333" : "#666"
                 }
                 strokeWidth={isClusterHead ? 2 : 0.5}
-                opacity={isAsleep ? 0.5 : isAlive ? 0.8 : 0.3}
+                opacity={isAsleep ? 0.5 : isAlive ? 0.9 : 0.4}
                 style={{
                   cursor: "pointer",
                   transition: "all 0.2s ease",
@@ -134,7 +167,6 @@ export function VisualizationTab({
                 onMouseLeave={onSensorLeave}
                 onMouseMove={(e) => onSensorHover(sensor, e)}
               />
-
               {isClusterHead && (
                 <circle
                   cx={sensor.x}
@@ -147,7 +179,6 @@ export function VisualizationTab({
                   style={{ pointerEvents: "none" }}
                 />
               )}
-
               {isAsleep && (
                 <g style={{ pointerEvents: "none" }}>
                   <circle
@@ -171,7 +202,6 @@ export function VisualizationTab({
                   </text>
                 </g>
               )}
-
               {isAlive && !isAsleep && energyRatio > 0.8 && (
                 <circle
                   cx={sensor.x}
@@ -184,7 +214,6 @@ export function VisualizationTab({
                   style={{ pointerEvents: "none" }}
                 />
               )}
-
               {isAlive && !isAsleep && (
                 <text
                   x={sensor.x}
@@ -201,7 +230,6 @@ export function VisualizationTab({
             </g>
           );
         })}
-
         <NetworkLegend algorithm={algorithm} />
       </svg>
     </Box>

@@ -1,6 +1,18 @@
 import { useMemo } from "react";
-import { SimulationResult, AlgorithmType, Sensor } from "../service/types";
-import { NetworkData } from "../types/NetworkVisualization.types";
+import type {
+  SimulationResult,
+  AlgorithmType,
+  Sensor,
+  SensorData,
+  EnvironmentGrids,
+} from "../service/types";
+
+export interface NetworkData {
+  sensors: Sensor[];
+  clusters: any[];
+  sensorData: SensorData[];
+  environmentGrids?: EnvironmentGrids;
+}
 
 export const useNetworkData = (
   simulationResult: SimulationResult | null,
@@ -13,6 +25,7 @@ export const useNetworkData = (
         sensors: [],
         clusters: [],
         sensorData: [],
+        environmentGrids: undefined,
       };
     }
 
@@ -23,6 +36,7 @@ export const useNetworkData = (
         sensors: simulationResult.sensors,
         clusters: [],
         sensorData: [],
+        environmentGrids: undefined,
       };
     }
 
@@ -67,6 +81,7 @@ export const useNetworkData = (
       sensors: Array.from(sensorMap.values()),
       clusters: historyItem.clusters,
       sensorData: historyItem.sensorsData,
+      environmentGrids: historyItem.environmentGrids,
     };
   }, [simulationResult, algorithm, currentRound]);
 };
